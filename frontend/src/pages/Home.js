@@ -168,66 +168,62 @@ const Home = () => {
                 </motion.div>
             </section>
 
-            {/* Scrollytelling Section 1: The Secure Vault */}
-            <section ref={vaultRef} className="relative h-[200vh] w-full z-20">
-                <div className="sticky top-0 h-screen flex flex-col items-center justify-center overflow-hidden px-6">
-                    <motion.div style={{ opacity: vaultHeadingOpacity }} className="text-center mb-16">
-                        <h2 className="text-4xl md:text-6xl font-display font-bold mb-4">The Global Liquidity Vault</h2>
-                        <p className="text-xl text-on-surface-variant max-w-2xl mx-auto">Secured by cryptography. Disbursed instantly.</p>
+            {/* Section 1: The Secure Vault */}
+            <section ref={vaultRef} className="relative min-h-screen w-full z-20 flex flex-col items-center justify-center py-20 px-6">
+                <motion.div style={{ opacity: vaultHeadingOpacity }} className="text-center mb-16">
+                    <h2 className="text-4xl md:text-6xl font-display font-bold mb-4">The Global Liquidity Vault</h2>
+                    <p className="text-xl text-on-surface-variant max-w-2xl mx-auto">Secured by cryptography. Disbursed instantly.</p>
+                </motion.div>
+
+                <div className="relative w-64 h-64 md:w-96 md:h-96 mx-auto flex items-center justify-center">
+                    {/* Vault Core */}
+                    <motion.div 
+                        style={{ scale: vaultScale, opacity: vaultOpacity, borderColor: vaultBorder }} 
+                        className="absolute inset-0 bg-surface rounded-full border-[8px] flex items-center justify-center z-10 shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+                    >
+                        <motion.div style={{ rotate: vaultLockRotate }}>
+                            <Lock size={80} className="text-primary mb-4" />
+                        </motion.div>
                     </motion.div>
 
-                    <div className="relative w-64 h-64 md:w-96 md:h-96 mx-auto flex items-center justify-center">
-                        {/* Vault Core */}
-                        <motion.div 
-                            style={{ scale: vaultScale, opacity: vaultOpacity, borderColor: vaultBorder }} 
-                            className="absolute inset-0 bg-surface rounded-full border-[8px] flex items-center justify-center z-10 shadow-[0_0_50px_rgba(0,0,0,0.5)]"
-                        >
-                            <motion.div style={{ rotate: vaultLockRotate }}>
-                                <Lock size={80} className="text-primary mb-4" />
-                            </motion.div>
-                        </motion.div>
+                    {/* Money Flowing Out */}
+                    {[...Array(12)].map((_, i) => (
+                        <MoneyParticle key={i} progress={vaultProgress} index={i} />
+                    ))}
 
-                        {/* Money Flowing Out */}
-                        {[...Array(12)].map((_, i) => (
-                            <MoneyParticle key={i} progress={vaultProgress} index={i} />
-                        ))}
-
-                        {/* Data Encrypting / Flowing In */}
-                        {[...Array(8)].map((_, i) => (
-                            <DataParticle key={`data-${i}`} progress={vaultProgress} index={i} />
-                        ))}
-                    </div>
+                    {/* Data Encrypting / Flowing In */}
+                    {[...Array(8)].map((_, i) => (
+                        <DataParticle key={`data-${i}`} progress={vaultProgress} index={i} />
+                    ))}
                 </div>
             </section>
 
-            {/* Scrollytelling Section 2: Pinned Analytics & Moving Features */}
-            <section className="relative w-full bg-background z-20">
-                {/* Sticky Background Container */}
-                <div className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden pointer-events-none">
-                    <div className="absolute inset-0 flex flex-col justify-center opacity-30">
-                        <div className="w-full max-w-7xl mx-auto p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <div className="h-64 border border-white/10 rounded-2xl p-6 relative overflow-hidden">
-                                <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-primary/20 to-transparent"></div>
-                                <Activity size={32} className="text-white/20 mb-4" />
-                                <div className="h-4 w-1/3 bg-white/10 rounded mb-2"></div>
-                                <div className="h-8 w-2/3 bg-white/20 rounded"></div>
-                            </div>
-                            <div className="h-64 border border-white/10 rounded-2xl p-6 md:col-span-2 relative overflow-hidden">
-                                <div className="w-full h-full flex items-end space-x-2 opacity-50">
-                                    {[...Array(20)].map((_, i) => (
-                                        <div key={i} className="flex-1 bg-white/10 rounded-t-sm" style={{ height: `${20 + Math.random() * 80}%` }}></div>
-                                    ))}
-                                </div>
+            {/* Section 2: Analytics Background & Features */}
+            <section className="relative w-full bg-background z-20 py-20 overflow-hidden">
+                {/* Background Container */}
+                <div className="absolute inset-0 flex flex-col justify-center items-center pointer-events-none opacity-30">
+                    <div className="w-full max-w-7xl mx-auto p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div className="h-64 border border-white/10 rounded-2xl p-6 relative overflow-hidden">
+                            <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-primary/20 to-transparent"></div>
+                            <Activity size={32} className="text-white/20 mb-4" />
+                            <div className="h-4 w-1/3 bg-white/10 rounded mb-2"></div>
+                            <div className="h-8 w-2/3 bg-white/20 rounded"></div>
+                        </div>
+                        <div className="h-64 border border-white/10 rounded-2xl p-6 md:col-span-2 relative overflow-hidden">
+                            <div className="w-full h-full flex items-end space-x-2 opacity-50">
+                                {[...Array(20)].map((_, i) => (
+                                    <div key={i} className="flex-1 bg-white/10 rounded-t-sm" style={{ height: `${20 + Math.random() * 80}%` }}></div>
+                                ))}
                             </div>
                         </div>
-                        <div className="text-center mt-12">
-                            <h2 className="text-[10vw] font-display font-extrabold text-white/5 leading-none">ANALYTICS</h2>
-                        </div>
+                    </div>
+                    <div className="text-center mt-12">
+                        <h2 className="text-[10vw] font-display font-extrabold text-white/5 leading-none">ANALYTICS</h2>
                     </div>
                 </div>
 
-                {/* Moving Feature Cards */}
-                <div className="relative z-10 max-w-5xl mx-auto px-6 space-y-16 -mt-[100vh] pb-16">
+                {/* Feature Cards */}
+                <div className="relative z-10 max-w-5xl mx-auto px-6 space-y-16">
                     <motion.div 
                         initial={{ opacity: 0, y: 150, scale: 0.9 }}
                         whileInView={{ opacity: 1, y: 0, scale: 1 }}
