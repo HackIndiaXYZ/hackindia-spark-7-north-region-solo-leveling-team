@@ -1,321 +1,432 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useWeb3 } from '../context/Web3Context';
-import { Wallet, Landmark, HandCoins, ShieldCheck, LockKeyhole, Cpu } from 'lucide-react';
+import React, { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { apiLoginUser, apiSignupUser } from '../utils/apiService';
+import { useAuth } from '../context/AuthContext';
+import { useWeb3 } from '../context/Web3Context';
+import { Eye, EyeOff, Lock, Mail, User, Phone, MapPin, Calendar, CreditCard, Shield, Zap, Chrome } from 'lucide-react';
 
-const Login = () => {
-    const { connectWallet, isConnected, userRole } = useWeb3();
-    const navigate = useNavigate();
+const GOOGLE_MOCK_USERS = [
+    { googleId: 'google_101', name: 'Aanya Sharma', email: 'aanya.sharma@gmail.com', avatar: 'AS' },
+    { googleId: 'google_102', name: 'Rohan Mehta',  email: 'rohan.mehta@gmail.com',  avatar: 'RM' },
+    { googleId: 'google_103', name: 'Priya Verma',  email: 'priya.verma@gmail.com',  avatar: 'PV' },
+];
 
-    // Steps: 'selectRole' | 'kycForm' | 'encrypting' | 'decrypting' | 'roleAnim'
-    const [step, setStep] = useState('selectRole');
-    const [selectedRole, setSelectedRole] = useState(null);
-    const [walletAddr, setWalletAddr] = useState(null);
-    const [kycData, setKycData] = useState({ panCard: '', aadharCard: '' });
-    const [errorMsg, setErrorMsg] = useState('');
-
-    useEffect(() => {
-        // If already connected and logged in seamlessly from context on mount,
-        // we might redirect, but we are handling it actively here instead
-    }, [isConnected, userRole]);
-
-    const handleRoleSelect = async (role) => {
-        setSelectedRole(role);
-        try {
-            const address = await connectWallet(role);
-            if (!address) return;
-            setWalletAddr(address);
-
-            // Attempt Login
-            try {
-                await apiLoginUser(address);
-                // User exists! Show decrypting anim, then redirect
-                setStep('decrypting');
-                setTimeout(() => {
-                    navigate(role === 'lender' ? '/lend' : '/dashboard');
-                }, 3000);
-            } catch (err) {
-                if (err.response && err.response.status === 404) {
-                    // New user -> KYC needed
-                    setStep('kycForm');
-                } else {
-                    setErrorMsg('Server error during login.');
-                }
-            }
-        } catch (error) {
-            console.error(error);
-        }
-    };
-
-    const handleKycSubmit = async (e) => {
-        e.preventDefault();
-        setErrorMsg('');
-        if (!kycData.panCard || !kycData.aadharCard) {
-            setErrorMsg('Both PAN and Aadhaar are required.');
-            return;
-        }
-
-        setStep('encrypting');
-
-        try {
-            await apiSignupUser({
-                walletAddress: walletAddr,
-                role: selectedRole,
-                panCard: kycData.panCard,
-                aadharCard: kycData.aadharCard
-            });
-
-            // After encryption anim, show role-specific anim
-            setTimeout(() => {
-                setStep('roleAnim');
-                setTimeout(() => {
-                    navigate(selectedRole === 'lender' ? '/lend' : '/dashboard');
-                }, 3000);
-            }, 3000);
-
-        } catch (err) {
-            setStep('kycForm');
-            setErrorMsg(err.response?.data?.message || 'Error saving KYC data');
-        }
-    };
-
-    // Animation Variants
-    const containerVariants = {
-        hidden: { opacity: 0, scale: 0.95 },
-        visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: 'easeOut' } },
-        exit: { opacity: 0, scale: 1.05, transition: { duration: 0.3 } }
-    };
-
+const InputField = ({ icon: Icon, label, type = 'text', value, onChange, placeholder, required, suffix }) => {
+    const [show, setShow] = useState(false);
+    const inputType = type === 'password' ? (show ? 'text' : 'password') : type;
     return (
-        <div className="min-h-[80vh] flex items-center justify-center relative px-4 overflow-hidden">
-            {/* Background elements */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 blur-[100px] rounded-full"></div>
-                <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-success/20 blur-[100px] rounded-full"></div>
-            </div>
-
-            <div className="relative z-10 w-full max-w-4xl flex justify-center">
-                <AnimatePresence mode="wait">
-                    {step === 'selectRole' && (
-                        <motion.div key="role" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="w-full">
-                            <div className="text-center mb-16">
-                                <h1 className="text-4xl md:text-5xl font-display font-bold mb-4">Select Your Role</h1>
-                                <p className="text-on-surface-variant text-lg max-w-lg mx-auto">
-                                    Connect your Web3 wallet and choose how you want to participate in the MicroLend protocol.
-                                </p>
-                            </div>
-
-                            <div className="grid md:grid-cols-2 gap-8">
-                                <div 
-                                    onClick={() => handleRoleSelect('borrower')}
-                                    className="glass p-10 rounded-3xl ghost-border cursor-pointer group hover:bg-white/5 transition-all duration-300 hover:scale-[1.02] flex flex-col items-center text-center relative overflow-hidden"
-                                >
-                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                        <HandCoins size={120} className="text-white" />
-                                    </div>
-                                    <div className="w-20 h-20 bg-primary/20 rounded-2xl flex items-center justify-center mb-6 text-primary group-hover:scale-110 transition-transform">
-                                        <HandCoins size={40} />
-                                    </div>
-                                    <h2 className="text-3xl font-display font-bold mb-4">I want to Borrow</h2>
-                                    <p className="text-on-surface-variant mb-8 flex-grow">
-                                        Apply for instant, AI-scored micro-loans without traditional collateral or credit checks.
-                                    </p>
-                                    <button className="w-full bg-primary/10 text-primary font-bold py-4 rounded-xl group-hover:bg-primary group-hover:text-white transition-colors flex items-center justify-center">
-                                        <Wallet className="mr-2" size={20} />
-                                        Connect Wallet as Borrower
-                                    </button>
-                                </div>
-
-                                <div 
-                                    onClick={() => handleRoleSelect('lender')}
-                                    className="glass p-10 rounded-3xl ghost-border cursor-pointer group hover:bg-white/5 transition-all duration-300 hover:scale-[1.02] flex flex-col items-center text-center relative overflow-hidden"
-                                >
-                                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                        <Landmark size={120} className="text-success" />
-                                    </div>
-                                    <div className="w-20 h-20 bg-success/20 rounded-2xl flex items-center justify-center mb-6 text-success group-hover:scale-110 transition-transform">
-                                        <Landmark size={40} />
-                                    </div>
-                                    <h2 className="text-3xl font-display font-bold mb-4">I want to Lend</h2>
-                                    <p className="text-on-surface-variant mb-8 flex-grow">
-                                        Provide liquidity to verified borrowers and earn fixed APY yields on your MATIC.
-                                    </p>
-                                    <button className="w-full bg-success/10 text-success font-bold py-4 rounded-xl group-hover:bg-success group-hover:text-white transition-colors flex items-center justify-center">
-                                        <Wallet className="mr-2" size={20} />
-                                        Connect Wallet as Lender
-                                    </button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {step === 'kycForm' && (
-                        <motion.div key="kyc" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="w-full max-w-md">
-                            <div className="glass p-10 rounded-3xl ghost-border">
-                                <div className="flex justify-center mb-6">
-                                    <div className="w-16 h-16 bg-primary/20 rounded-2xl flex items-center justify-center text-primary">
-                                        <ShieldCheck size={32} />
-                                    </div>
-                                </div>
-                                <h2 className="text-2xl font-display font-bold text-center mb-2">Verify Identity</h2>
-                                <p className="text-on-surface-variant text-center mb-8 text-sm">
-                                    To ensure protocol security, please provide your documents. They will be encrypted before storage.
-                                </p>
-                                
-                                {errorMsg && (
-                                    <div className="bg-error/20 border border-error/50 text-error px-4 py-3 rounded-lg mb-6 text-sm text-center">
-                                        {errorMsg}
-                                    </div>
-                                )}
-
-                                <form onSubmit={handleKycSubmit} className="space-y-5">
-                                    <div>
-                                        <label className="block text-sm font-bold text-on-surface-variant mb-2 uppercase tracking-wider">PAN Card Number</label>
-                                        <input 
-                                            type="text" 
-                                            value={kycData.panCard}
-                                            onChange={(e) => setKycData({...kycData, panCard: e.target.value.toUpperCase()})}
-                                            className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors"
-                                            placeholder="ABCDE1234F"
-                                            maxLength={10}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-on-surface-variant mb-2 uppercase tracking-wider">Aadhaar Card Number</label>
-                                        <input 
-                                            type="text" 
-                                            value={kycData.aadharCard}
-                                            onChange={(e) => setKycData({...kycData, aadharCard: e.target.value.replace(/\D/g, '')})}
-                                            className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary transition-colors"
-                                            placeholder="1234 5678 9012"
-                                            maxLength={12}
-                                        />
-                                    </div>
-                                    <button type="submit" className="w-full bg-primary text-white font-bold py-4 rounded-xl hover:bg-primary/90 transition-colors mt-8 flex items-center justify-center shadow-[0_0_20px_rgba(var(--primary),0.3)]">
-                                        <LockKeyhole size={18} className="mr-2" />
-                                        Secure & Submit
-                                    </button>
-                                </form>
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {step === 'encrypting' && (
-                        <motion.div key="encrypting" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="text-center">
-                            <motion.div 
-                                animate={{ rotate: 360 }}
-                                transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
-                                className="w-32 h-32 mx-auto relative mb-8"
-                            >
-                                {/* Abstract Lock/Shield geometry */}
-                                <svg viewBox="0 0 100 100" className="w-full h-full text-primary drop-shadow-[0_0_15px_rgba(var(--primary),0.5)]">
-                                    <motion.path 
-                                        d="M50 5 L90 25 L90 60 C90 80 50 95 50 95 C50 95 10 80 10 60 L10 25 Z" 
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        strokeWidth="2"
-                                        initial={{ pathLength: 0 }}
-                                        animate={{ pathLength: 1 }}
-                                        transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
-                                    />
-                                    <motion.circle 
-                                        cx="50" cy="50" r="15" 
-                                        fill="none" stroke="currentColor" strokeWidth="2"
-                                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-                                        transition={{ duration: 1, repeat: Infinity }}
-                                    />
-                                    <motion.rect x="45" y="45" width="10" height="15" fill="currentColor" />
-                                </svg>
-                            </motion.div>
-                            <h2 className="text-3xl font-display font-bold mb-4 tracking-wider">ENCRYPTING DATA</h2>
-                            <p className="text-on-surface-variant max-w-sm mx-auto text-sm animate-pulse">
-                                Generating cryptographic hashes... Securing PAN & Aadhaar details to the distributed ledger nodes.
-                            </p>
-                        </motion.div>
-                    )}
-
-                    {step === 'decrypting' && (
-                        <motion.div key="decrypting" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="text-center">
-                            <motion.div className="w-32 h-32 mx-auto relative mb-8 flex items-center justify-center">
-                                <Cpu size={80} className="text-success absolute" />
-                                <motion.div 
-                                    className="absolute inset-0 border-4 border-t-success border-r-success border-b-transparent border-l-transparent rounded-full"
-                                    animate={{ rotate: 360 }}
-                                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                />
-                                <motion.div 
-                                    className="absolute inset-2 border-4 border-b-primary border-l-primary border-t-transparent border-r-transparent rounded-full"
-                                    animate={{ rotate: -360 }}
-                                    transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                                />
-                            </motion.div>
-                            <h2 className="text-3xl font-display font-bold mb-4 text-success tracking-wider">VERIFYING CREDENTIALS</h2>
-                            <p className="text-on-surface-variant max-w-sm mx-auto text-sm animate-pulse">
-                                Decrypting user profile from secure server... Establishing authenticated session.
-                            </p>
-                        </motion.div>
-                    )}
-
-                    {step === 'roleAnim' && (
-                        <motion.div key="roleAnim" variants={containerVariants} initial="hidden" animate="visible" exit="exit" className="text-center w-full">
-                            {selectedRole === 'lender' ? (
-                                <div>
-                                    <div className="w-64 h-64 mx-auto relative mb-8 flex items-center justify-center">
-                                        {/* Vault / Liquidity Pool Abstract Animation */}
-                                        <div className="absolute bottom-0 w-32 h-32 bg-success/20 border-b-4 border-success rounded-b-3xl"></div>
-                                        <motion.div 
-                                            className="w-12 h-12 bg-yellow-400 rounded-full shadow-[0_0_20px_rgba(250,204,21,0.8)] absolute top-0"
-                                            animate={{ y: [0, 100], opacity: [0, 1, 0] }}
-                                            transition={{ duration: 1, repeat: Infinity, ease: "easeIn" }}
-                                        />
-                                        <motion.div 
-                                            className="w-12 h-12 bg-yellow-400 rounded-full shadow-[0_0_20px_rgba(250,204,21,0.8)] absolute top-[-40px]"
-                                            animate={{ y: [0, 140], opacity: [0, 1, 0] }}
-                                            transition={{ duration: 1, repeat: Infinity, ease: "easeIn", delay: 0.5 }}
-                                        />
-                                    </div>
-                                    <h2 className="text-3xl font-display font-bold mb-4 text-success tracking-wider">READY TO LEND</h2>
-                                    <p className="text-on-surface-variant max-w-sm mx-auto text-sm">
-                                        Welcome to the liquidity pool. Let your assets work for you.
-                                    </p>
-                                </div>
-                            ) : (
-                                <div>
-                                    <div className="w-64 h-64 mx-auto relative mb-8 flex flex-col items-center justify-center">
-                                        {/* Contract Signing / Money Received Abstract Animation */}
-                                        <motion.div 
-                                            className="w-32 h-40 border-2 border-primary rounded-lg bg-primary/10 relative overflow-hidden"
-                                            animate={{ scale: [0.9, 1, 0.9] }}
-                                            transition={{ duration: 2, repeat: Infinity }}
-                                        >
-                                            <motion.div className="w-20 h-2 bg-primary/50 absolute top-6 left-6 rounded-full" />
-                                            <motion.div className="w-16 h-2 bg-primary/50 absolute top-12 left-6 rounded-full" />
-                                            <motion.div className="w-24 h-2 bg-primary/50 absolute top-18 left-6 rounded-full" />
-                                            
-                                            {/* Money dropping onto contract */}
-                                            <motion.div 
-                                                className="w-8 h-8 bg-success rounded-full absolute right-4 drop-shadow-[0_0_10px_rgba(var(--success),0.8)] flex items-center justify-center text-white font-bold"
-                                                animate={{ y: [-50, 120] }}
-                                                transition={{ duration: 1.5, repeat: Infinity, ease: "bounce" }}
-                                            >
-                                                ₹
-                                            </motion.div>
-                                        </motion.div>
-                                    </div>
-                                    <h2 className="text-3xl font-display font-bold mb-4 text-primary tracking-wider">READY TO BORROW</h2>
-                                    <p className="text-on-surface-variant max-w-sm mx-auto text-sm">
-                                        Instant micro-loans unlocked. Building your decentralized credit score.
-                                    </p>
-                                </div>
-                            )}
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+        <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#a78bfa', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {label} {required && <span style={{ color: '#f87171' }}>*</span>}
+            </label>
+            <div style={{ position: 'relative' }}>
+                <Icon size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#7c3aed', opacity: 0.7 }} />
+                <input
+                    type={inputType}
+                    value={value}
+                    onChange={onChange}
+                    placeholder={placeholder}
+                    required={required}
+                    style={{
+                        width: '100%',
+                        background: 'rgba(124,58,237,0.07)',
+                        border: '1px solid rgba(124,58,237,0.25)',
+                        borderRadius: 10,
+                        padding: suffix ? '10px 40px 10px 36px' : '10px 12px 10px 36px',
+                        color: '#f1f5f9',
+                        fontSize: 13,
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        transition: 'border-color 0.2s'
+                    }}
+                    onFocus={e => e.target.style.borderColor = '#7c3aed'}
+                    onBlur={e => e.target.style.borderColor = 'rgba(124,58,237,0.25)'}
+                />
+                {type === 'password' && (
+                    <button type="button" onClick={() => setShow(!show)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#7c3aed', padding: 0 }}>
+                        {show ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                )}
+                {suffix && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#94a3b8' }}>{suffix}</span>}
             </div>
         </div>
     );
 };
 
-export default Login;
+const RoleCard = ({ role, selected, onClick }) => (
+    <motion.button
+        type="button"
+        whileHover={{ scale: 1.03 }}
+        whileTap={{ scale: 0.97 }}
+        onClick={() => onClick(role)}
+        style={{
+            flex: 1, padding: '12px 8px', borderRadius: 12, cursor: 'pointer',
+            border: selected === role ? '2px solid #7c3aed' : '2px solid rgba(124,58,237,0.2)',
+            background: selected === role ? 'rgba(124,58,237,0.15)' : 'rgba(255,255,255,0.03)',
+            color: selected === role ? '#a78bfa' : '#94a3b8',
+            fontWeight: 700, fontSize: 13, transition: 'all 0.2s'
+        }}
+    >
+        {role === 'borrower' ? '🏦 Borrower' : '💰 Lender'}
+        <div style={{ fontSize: 10, opacity: 0.7, fontWeight: 400, marginTop: 3 }}>
+            {role === 'borrower' ? 'Request loans' : 'Fund loans'}
+        </div>
+    </motion.button>
+);
+
+export default function Login() {
+    const { login, register, googleLogin } = useAuth();
+    const { connectWallet, isDemoMode } = useWeb3();
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const returnTo = location.state?.from?.pathname || '/';
+    const getRedirect = (role) => role === 'lender' ? '/lend' : (role === 'borrower' ? '/dashboard' : returnTo);
+
+    const [tab, setTab] = useState('signin'); // 'signin' | 'signup'
+    const [role, setRole] = useState('borrower');
+    const [encryptAnim, setEncryptAnim] = useState(false);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [showGooglePicker, setShowGooglePicker] = useState(false);
+    const [googleRole, setGoogleRole] = useState('borrower');
+
+    // Sign In state
+    const [signInEmail, setSignInEmail] = useState('');
+    const [signInPass, setSignInPass]   = useState('');
+
+    // Sign Up state
+    const [form, setForm] = useState({
+        name: '', email: '', password: '', confirmPass: '',
+        phone: '', address: '', age: '', panCard: '', aadharCard: ''
+    });
+
+    const updateForm = (key) => (e) => setForm(prev => ({ ...prev, [key]: e.target.value }));
+
+    const handleSignIn = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+        try {
+            const data = await login(signInEmail, signInPass);
+            navigate(getRedirect(data.user.role));
+        } catch (err) {
+            setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSignUp = async (e) => {
+        e.preventDefault();
+        setError('');
+        if (form.password !== form.confirmPass) {
+            setError('Passwords do not match.');
+            return;
+        }
+        if (form.password.length < 6) {
+            setError('Password must be at least 6 characters.');
+            return;
+        }
+        setEncryptAnim(true);
+        setLoading(true);
+        await new Promise(r => setTimeout(r, 2200)); // Let the encryption animation play
+        try {
+            const payload = { name: form.name, email: form.email, password: form.password, phone: form.phone, address: form.address, age: form.age ? Number(form.age) : undefined, role, panCard: form.panCard, aadharCard: form.aadharCard };
+            const data = await register(payload);
+            navigate(getRedirect(data.user.role));
+        } catch (err) {
+            setError(err.response?.data?.message || 'Registration failed. Please try again.');
+            setEncryptAnim(false);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleSignIn = async (mockUser) => {
+        setShowGooglePicker(false);
+        setLoading(true);
+        setError('');
+        try {
+            const data = await googleLogin(mockUser, googleRole);
+            navigate(getRedirect(data.user.role));
+        } catch (err) {
+            setError(err.response?.data?.message || 'Google sign-in failed.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleWalletConnect = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            await connectWallet();
+            navigate(returnTo);
+        } catch {
+            setError('Wallet connection failed.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0d0514 0%, #0f172a 60%, #0d0514 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: "'Inter', sans-serif" }}>
+            {/* Background glow */}
+            <div style={{ position: 'fixed', top: '20%', left: '15%', width: 400, height: 400, background: 'radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
+            <div style={{ position: 'fixed', bottom: '20%', right: '15%', width: 300, height: 300, background: 'radial-gradient(circle, rgba(16,185,129,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+            <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                style={{ width: '100%', maxWidth: 480, background: 'rgba(15,23,42,0.9)', backdropFilter: 'blur(20px)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 24, padding: '36px 32px', boxShadow: '0 25px 80px rgba(0,0,0,0.5)' }}
+            >
+                {/* Logo */}
+                <div style={{ textAlign: 'center', marginBottom: 28 }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <Zap size={24} color="#7c3aed" />
+                        <span style={{ fontSize: 22, fontWeight: 800, background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>MicroLend</span>
+                    </div>
+                    <p style={{ color: '#64748b', fontSize: 12 }}>Decentralized micro-finance protocol</p>
+                </div>
+
+                {/* Tab switcher */}
+                <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 4, marginBottom: 24 }}>
+                    {['signin', 'signup'].map(t => (
+                        <motion.button
+                            key={t}
+                            onClick={() => { setTab(t); setError(''); }}
+                            style={{
+                                flex: 1, padding: '9px 0', borderRadius: 9, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13,
+                                background: tab === t ? 'rgba(124,58,237,0.3)' : 'transparent',
+                                color: tab === t ? '#a78bfa' : '#64748b',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {t === 'signin' ? 'Sign In' : 'Create Account'}
+                        </motion.button>
+                    ))}
+                </div>
+
+                {/* Encryption animation overlay */}
+                <AnimatePresence>
+                    {encryptAnim && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            style={{ position: 'absolute', inset: 0, borderRadius: 24, background: 'rgba(10,5,20,0.92)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 20, backdropFilter: 'blur(8px)' }}
+                        >
+                            <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                                style={{ marginBottom: 20 }}
+                            >
+                                <Shield size={48} color="#7c3aed" />
+                            </motion.div>
+                            <p style={{ color: '#a78bfa', fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Encrypting Your Data</p>
+                            {['bcrypt hashing PAN / Aadhaar…', 'Securing phone & address…', 'Generating JWT token…'].map((msg, i) => (
+                                <motion.p
+                                    key={msg}
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: i * 0.55 }}
+                                    style={{ color: '#64748b', fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}
+                                >
+                                    <Lock size={10} color="#10b981" /> {msg}
+                                </motion.p>
+                            ))}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                <div style={{ position: 'relative' }}>
+                    <AnimatePresence mode="wait">
+                        {/* ── SIGN IN ──────────────────────────────────────────── */}
+                        {tab === 'signin' && (
+                            <motion.form
+                                key="signin"
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 20 }}
+                                onSubmit={handleSignIn}
+                            >
+                                <InputField icon={Mail} label="Email" type="email" value={signInEmail} onChange={e => setSignInEmail(e.target.value)} placeholder="you@example.com" required />
+                                <InputField icon={Lock} label="Password" type="password" value={signInPass} onChange={e => setSignInPass(e.target.value)} placeholder="Your password" required />
+
+                                {error && <p style={{ color: '#f87171', fontSize: 12, marginBottom: 12, padding: '8px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: 8, border: '1px solid rgba(248,113,113,0.2)' }}>{error}</p>}
+
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    type="submit"
+                                    disabled={loading}
+                                    style={{ width: '100%', padding: '13px', background: 'linear-gradient(135deg, #7c3aed, #5b21b6)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginBottom: 12 }}
+                                >
+                                    {loading ? 'Signing in…' : 'Sign In →'}
+                                </motion.button>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0' }}>
+                                    <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+                                    <span style={{ color: '#475569', fontSize: 11 }}>OR</span>
+                                    <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+                                </div>
+
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    type="button"
+                                    onClick={() => setShowGooglePicker(true)}
+                                    style={{ width: '100%', padding: '11px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#e2e8f0', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 10 }}
+                                >
+                                    <Chrome size={18} color="#ea4335" /> Continue with Google
+                                </motion.button>
+
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    type="button"
+                                    onClick={handleWalletConnect}
+                                    style={{ width: '100%', padding: '11px', background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 12, color: '#fbbf24', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}
+                                >
+                                    🦊 Connect MetaMask Wallet
+                                </motion.button>
+                            </motion.form>
+                        )}
+
+                        {/* ── SIGN UP ──────────────────────────────────────────── */}
+                        {tab === 'signup' && (
+                            <motion.form
+                                key="signup"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                onSubmit={handleSignUp}
+                            >
+                                {/* Role selection */}
+                                <div style={{ marginBottom: 16 }}>
+                                    <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#a78bfa', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>I want to <span style={{ color: '#f87171' }}>*</span></label>
+                                    <div style={{ display: 'flex', gap: 10 }}>
+                                        <RoleCard role="borrower" selected={role} onClick={setRole} />
+                                        <RoleCard role="lender"   selected={role} onClick={setRole} />
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                    <InputField icon={User}     label="Full Name"   value={form.name}       onChange={updateForm('name')}       placeholder="Aarav Singh"        required />
+                                    <InputField icon={Calendar} label="Age"         type="number" value={form.age} onChange={updateForm('age')}  placeholder="25" />
+                                </div>
+                                <InputField icon={Mail}  label="Email"    type="email"    value={form.email}    onChange={updateForm('email')}    placeholder="you@example.com"   required />
+                                <InputField icon={Phone} label="Phone No" type="tel"      value={form.phone}    onChange={updateForm('phone')}    placeholder="+91 98765 43210" />
+                                <InputField icon={MapPin} label="Address"              value={form.address}  onChange={updateForm('address')}  placeholder="123, MG Road, Mumbai" />
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                    <InputField icon={CreditCard} label="PAN Card"     value={form.panCard}    onChange={updateForm('panCard')}    placeholder="ABCDE1234F" />
+                                    <InputField icon={Shield}     label="Aadhaar No"   value={form.aadharCard} onChange={updateForm('aadharCard')} placeholder="XXXX XXXX XXXX" />
+                                </div>
+                                <InputField icon={Lock} label="Password"         type="password" value={form.password}    onChange={updateForm('password')}    placeholder="Min 6 characters" required />
+                                <InputField icon={Lock} label="Confirm Password" type="password" value={form.confirmPass} onChange={updateForm('confirmPass')} placeholder="Repeat password"    required />
+
+                                <div style={{ fontSize: 10, color: '#475569', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', background: 'rgba(124,58,237,0.05)', borderRadius: 8 }}>
+                                    <Lock size={10} color="#7c3aed" />
+                                    PAN & Aadhaar are bcrypt-hashed. Address & phone are encrypted. We never store raw KYC data.
+                                </div>
+
+                                {error && <p style={{ color: '#f87171', fontSize: 12, marginBottom: 12, padding: '8px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: 8, border: '1px solid rgba(248,113,113,0.2)' }}>{error}</p>}
+
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    type="submit"
+                                    disabled={loading}
+                                    style={{ width: '100%', padding: '13px', background: 'linear-gradient(135deg, #7c3aed, #5b21b6)', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginBottom: 12 }}
+                                >
+                                    {loading ? 'Creating account…' : '🔐 Create Account'}
+                                </motion.button>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '8px 0' }}>
+                                    <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+                                    <span style={{ color: '#475569', fontSize: 11 }}>OR</span>
+                                    <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+                                </div>
+
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    type="button"
+                                    onClick={() => setShowGooglePicker(true)}
+                                    style={{ width: '100%', padding: '11px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: '#e2e8f0', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}
+                                >
+                                    <Chrome size={18} color="#ea4335" /> Sign up with Google
+                                </motion.button>
+                            </motion.form>
+                        )}
+                    </AnimatePresence>
+                </div>
+
+                {/* Sign in / create link */}
+                <p style={{ textAlign: 'center', color: '#475569', fontSize: 12, marginTop: 20 }}>
+                    {tab === 'signin' ? "Don't have an account? " : "Already have an account? "}
+                    <button onClick={() => { setTab(tab === 'signin' ? 'signup' : 'signin'); setError(''); }} style={{ color: '#a78bfa', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 12 }}>
+                        {tab === 'signin' ? 'Create one' : 'Sign in'}
+                    </button>
+                </p>
+            </motion.div>
+
+            {/* Google account picker modal */}
+            <AnimatePresence>
+                {showGooglePicker && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}
+                        onClick={() => setShowGooglePicker(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.85, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.85, opacity: 0 }}
+                            onClick={e => e.stopPropagation()}
+                            style={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 28, width: '100%', maxWidth: 360, boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}
+                        >
+                            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                                <Chrome size={32} color="#ea4335" style={{ margin: '0 auto 10px' }} />
+                                <h3 style={{ color: '#f1f5f9', fontWeight: 700, fontSize: 16, margin: 0 }}>Choose a Google account</h3>
+                                <p style={{ color: '#64748b', fontSize: 11, marginTop: 4 }}>Demo mode — select a mock account</p>
+                            </div>
+
+                            <div style={{ marginBottom: 16 }}>
+                                <label style={{ fontSize: 11, color: '#a78bfa', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8 }}>I am a:</label>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    {['borrower', 'lender'].map(r => (
+                                        <button key={r} onClick={() => setGoogleRole(r)} style={{ flex: 1, padding: '8px', borderRadius: 10, border: googleRole === r ? '1.5px solid #7c3aed' : '1.5px solid rgba(255,255,255,0.1)', background: googleRole === r ? 'rgba(124,58,237,0.15)' : 'transparent', color: googleRole === r ? '#a78bfa' : '#94a3b8', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
+                                            {r === 'borrower' ? '🏦 Borrower' : '💰 Lender'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {GOOGLE_MOCK_USERS.map(u => (
+                                <motion.button
+                                    key={u.googleId}
+                                    whileHover={{ x: 4, background: 'rgba(124,58,237,0.1)' }}
+                                    onClick={() => handleGoogleSignIn(u)}
+                                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)', cursor: 'pointer', marginBottom: 8, textAlign: 'left' }}
+                                >
+                                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #7c3aed, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, color: '#fff', flexShrink: 0 }}>
+                                        {u.avatar}
+                                    </div>
+                                    <div>
+                                        <div style={{ color: '#f1f5f9', fontWeight: 600, fontSize: 13 }}>{u.name}</div>
+                                        <div style={{ color: '#64748b', fontSize: 11 }}>{u.email}</div>
+                                    </div>
+                                </motion.button>
+                            ))}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+}

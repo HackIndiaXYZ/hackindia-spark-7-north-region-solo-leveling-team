@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.24;
 
 /**
  * @title MicroLend
  * @dev AI-Powered DeFi Micro-Lending Platform
  */
+
+interface IReputationSBT {
+    enum BadgeType { NONE, GOOD_BORROWER, DEFAULTER }
+    function mint(address to, BadgeType badge) external;
+}
+
 contract MicroLend {
     enum LoanStatus { PENDING, FUNDED, REPAID, DEFAULTED }
 
@@ -22,6 +28,10 @@ contract MicroLend {
         bool repaid;
         string collateralAsset;
         uint collateralValue;
+        bool extensionRequested;
+        uint8 extensionsUsed;
+        uint8 maxExtensions;
+        uint gracePeriodEnd;
     }
 
     mapping(address => LoanRequest[]) public borrowerLoans;
@@ -32,6 +42,7 @@ contract MicroLend {
     uint public loanCounter;
     address public owner;
     uint public PROTOCOL_FEE = 5; // 0.5% in basis points
+    IReputationSBT public reputationContract;
 
     event LoanApplied(uint indexed loanId, address indexed borrower, uint amount, uint creditScore);
     event LoanFunded(uint indexed loanId, address indexed lender, address indexed borrower, uint amount);
@@ -63,6 +74,10 @@ contract MicroLend {
         owner = msg.sender;
     }
 
+    function setReputationContract(address _addr) external onlyOwner {
+        reputationContract = IReputationSBT(_addr);
+    }
+
     function getDynamicRateBps(uint duration) public pure returns (uint) {
         if (duration <= 7)   return 500;
         if (duration <= 14)  return 550;
@@ -83,8 +98,9 @@ contract MicroLend {
      * @param duration Duration in days (30, 60, or 90)
      * @param collateralAsset Type of real world asset (e.g. "Vehicle")
      * @param collateralValue Estimated value of the asset in INR
+     * @param extensionRequested Whether to request future extension capability
      */
-    function applyForLoan(uint amount, uint creditScore, string memory purpose, uint duration, string memory collateralAsset, uint collateralValue) external {
+    function applyForLoan(uint amount, uint creditScore, string memory purpose, uint duration, string memory collateralAsset, uint collateralValue, bool extensionRequested) external {
         require(creditScore >= 600, "Credit score too low");
         require(amount >= 0.001 ether && amount <= 1 ether, "Amount out of range");
         require(duration > 0 && duration <= 365, "Invalid duration");
@@ -105,7 +121,11 @@ contract MicroLend {
             repayBy: 0, // Set when funded
             repaid: false,
             collateralAsset: collateralAsset,
-            collateralValue: collateralValue
+            collateralValue: collateralValue,
+            extensionRequested: extensionRequested,
+            extensionsUsed: 0,
+            maxExtensions: 1,
+            gracePeriodEnd: 0
         });
 
         borrowerLoans[msg.sender].push(newLoan);
@@ -141,6 +161,7 @@ contract MicroLend {
         loanIdToLender[loanId] = msg.sender;
         loan.status = LoanStatus.FUNDED;
         loan.repayBy = block.timestamp + (loan.duration * 1 days);
+        loan.gracePeriodEnd = loan.repayBy + (GRACE_PERIOD_DAYS * 1 days);
         
         totalValueLocked += loan.amount;
 
@@ -185,6 +206,10 @@ contract MicroLend {
         loan.status = LoanStatus.REPAID;
         loan.repaid = true;
         totalValueLocked -= loan.amount;
+
+        if (address(reputationContract) != address(0)) {
+            reputationContract.mint(msg.sender, IReputationSBT.BadgeType.GOOD_BORROWER);
+        }
 
         if (lender != address(0)) {
             (bool successLender, ) = lender.call{value: lenderShare}("");
@@ -275,12 +300,16 @@ contract MicroLend {
         require(!loan.repaid, "Loan already repaid");
         require(loan.repayBy > 0, "Loan has no repayment deadline");
         require(
-            block.timestamp > loan.repayBy + (GRACE_PERIOD_DAYS * 1 days),
+            block.timestamp > loan.gracePeriodEnd,
             "Grace period has not elapsed"
         );
 
         loan.status = LoanStatus.DEFAULTED;
         totalValueLocked -= loan.amount;
+
+        if (address(reputationContract) != address(0)) {
+            reputationContract.mint(borrower, IReputationSBT.BadgeType.DEFAULTER);
+        }
 
         emit LoanDefaulted(loanId, borrower, loan.amount);
     }
@@ -314,6 +343,34 @@ contract MicroLend {
             }
         }
         return result;
+    }
+
+    /**
+     * @dev Extend repayment date by 30 days
+     * @param loanId ID of the loan to extend
+     */
+    function extendRepaymentDate(uint loanId) external nonReentrant validLoanId(loanId) {
+        LoanRequest[] storage loans = borrowerLoans[msg.sender];
+        bool found = false;
+        uint loanIndex;
+        for (uint i = 0; i < loans.length; i++) {
+            if (loans[i].id == loanId) {
+                found = true;
+                loanIndex = i;
+                break;
+            }
+        }
+        require(found, "Loan not found");
+        
+        LoanRequest storage loan = loans[loanIndex];
+        require(loan.status == LoanStatus.FUNDED, "Loan is not funded");
+        require(!loan.repaid, "Loan already repaid");
+        require(loan.extensionRequested, "Extension not requested during application");
+        require(loan.extensionsUsed < loan.maxExtensions, "Max extensions reached");
+
+        loan.repayBy += 30 days;
+        loan.interestRateBps += 200; // Add 2% penalty
+        loan.extensionsUsed += 1;
     }
 }
 

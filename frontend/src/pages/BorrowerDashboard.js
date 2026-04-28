@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWeb3 } from '../context/Web3Context';
-import { getBorrowerLoans, repayLoan, markLoanAsDefaulted, isLoanOverdue, daysOverdue } from '../utils/web3Service';
+import { getBorrowerLoans, repayLoan, markLoanAsDefaulted, isLoanOverdue, daysOverdue, extendLoan } from '../utils/web3Service';
 import LoanCard from '../components/LoanCard';
 import ReputationBadge from '../components/ReputationBadge';
 import { toastPending, toastError, toastTx } from '../components/ToastProvider';
@@ -57,6 +57,20 @@ const BorrowerDashboard = () => {
             toastError("Could not mark as defaulted.");
         }
         setDefaultingId(null);
+    };
+
+    const handleExtend = async (loanId) => {
+        toastPending("Executing loan extension...");
+        const res = await extendLoan(contract, loanId, isDemoMode);
+        if (res.success) {
+            toastTx(res.txHash);
+            // Refresh loans
+            const address = isDemoMode ? "0xdemo_borrower" : walletAddress;
+            const data = await getBorrowerLoans(contract, address, isDemoMode);
+            setLoans(data);
+        } else {
+            toastError("Extension failed. Verify conditions.");
+        }
     };
 
     // ─── Not Connected State ──────────────────────────────────────────────────
@@ -187,7 +201,7 @@ const BorrowerDashboard = () => {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {activeLoans.map(loan => (
-                                <LoanCard key={loan.id} loan={loan} isBorrower={true} onRepay={handleRepay} />
+                                <LoanCard key={loan.id} loan={loan} isBorrower={true} onRepay={handleRepay} onExtend={handleExtend} />
                             ))}
                             {activeLoans.length === 0 && (
                                 <div className="col-span-full tonal-card p-16 rounded-3xl ghost-border text-center">

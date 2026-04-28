@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useWeb3 } from '../context/Web3Context';
 import { getAllPendingLoans, fundLoan } from '../utils/web3Service';
 import { toastPending, toastError, toastTx } from '../components/ToastProvider';
-import { Search, Sliders, SortAsc, Zap, DollarSign, Tag, ChevronDown, TrendingUp, ShieldOff, Wallet, ShieldCheck } from 'lucide-react';
+import { Search, Sliders, SortAsc, Zap, DollarSign, Tag, ChevronDown, TrendingUp, ShieldOff, Wallet, ShieldCheck, CalendarPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCurrency } from '../context/CurrencyContext';
 
@@ -64,7 +64,14 @@ const LoanMarketCard = ({ loan, onFund, funding }) => {
                     <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1">
                         #{loan.id.toString().padStart(4, '0')}
                     </p>
-                    <PurposePill purpose={loan.purpose} />
+                    <div className="flex gap-2 items-center mt-1">
+                        <PurposePill purpose={loan.purpose} />
+                        {loan.extensionRequested && (
+                            <span className="text-[9px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider border bg-yellow-400/10 text-yellow-400 border-yellow-400/20 flex items-center gap-1">
+                                <CalendarPlus size={10} /> Ext. Opt-in
+                            </span>
+                        )}
+                    </div>
                 </div>
                 <div className="text-right">
                     <p className="text-2xl font-display font-black text-on-surface">{displayAmount(loan.amount)}</p>

@@ -4,9 +4,12 @@ import axios from 'axios';
 import { useWeb3 } from '../context/Web3Context';
 import { applyForLoan } from '../utils/web3Service';
 import ScoreBreakdown from '../components/ScoreBreakdown';
+import UPIConnect from '../components/UPIConnect';
+import UPIResultCard from '../components/UPIResultCard';
 import { useCurrency } from '../context/CurrencyContext';
 import { toastPending, toastError, toastTx } from '../components/ToastProvider';
 import { Loader2, ArrowLeft, ArrowRight, ShieldCheck, Info, Zap, Wallet } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Dynamic interest rate: shorter terms cost less, longer terms cost more
 const getDynamicRate = (duration) => {
@@ -31,6 +34,7 @@ const Apply = () => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [aiResult, setAiResult] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [upiMetrics, setUpiMetrics] = useState(null);
 
     const [formData, setFormData] = useState({
         income: isDemoMode ? 18000 : '',
@@ -44,7 +48,8 @@ const Apply = () => {
         yearsAtAddress: isDemoMode ? 3 : 1,
         hasCollateral: false,
         collateralAsset: 'None',
-        collateralValue: ''
+        collateralValue: '',
+        extensionRequested: false
     });
 
     const handleChange = (e) => {
@@ -59,8 +64,26 @@ const Apply = () => {
         setFormData({ ...formData, [e.target.name]: val });
     };
 
+    const handleUpiAnalysisComplete = (metrics) => {
+        setUpiMetrics(metrics);
+        setFormData(prev => ({
+            ...prev,
+            income: metrics.avg_monthly_income,
+            // Convert simple type to display type
+            employmentType: metrics.employment_type_detected === 'gig' ? 'Gig Worker' : 
+                            metrics.employment_type_detected === 'self_employed' ? 'Self-Employed' : 
+                            metrics.employment_type_detected === 'salaried' ? 'Salaried' : 'Unemployed',
+            existingDebt: metrics.existing_debt_load
+        }));
+    };
+
     const handleGetScore = async (e) => {
         e.preventDefault();
+
+        if (!upiMetrics) {
+            toastError("Please connect and verify your UPI transaction history first.");
+            return;
+        }
 
         if (formData.hasCollateral) {
             if (formData.collateralAsset === 'None') {
@@ -108,7 +131,8 @@ const Apply = () => {
             aiResult.score, formData.loanPurpose, 
             formData.duration, isDemoMode, address,
             formData.hasCollateral ? formData.collateralAsset : 'None',
-            formData.hasCollateral ? formData.collateralValue || 0 : 0
+            formData.hasCollateral ? formData.collateralValue || 0 : 0,
+            formData.extensionRequested
         );
 
         if (res.success) {
@@ -145,40 +169,57 @@ const Apply = () => {
                 ))}
             </div>
 
+            <AnimatePresence mode="wait">
             {step === 1 && (
-                <div className="tonal-card p-10 rounded-3xl ghost-border animate-in fade-in slide-in-from-bottom-4">
+                <motion.div
+                    key="step1"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                    className="tonal-card p-10 rounded-3xl ghost-border"
+                >
                     <form onSubmit={handleGetScore} className="space-y-8">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant flex items-center">
-                                    <Info size={12} className="mr-1" /> Monthly Income (₹)
-                                </label>
-                                <input 
-                                    type="text"
-                                    inputMode="numeric"
-                                    name="income" 
-                                    required 
-                                    value={formData.income} 
-                                    onChange={handleChange} 
-                                    onFocus={(e) => e.target.select()}
-                                    className="w-full bg-surface-low border border-white/20 rounded-xl p-4 text-white focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all placeholder:text-white/30" 
-                                    placeholder="e.g. 25000"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Employment Type</label>
-                                <select name="employmentType" value={formData.employmentType} onChange={handleChange} className="w-full bg-surface-low border border-white/10 rounded-xl p-4 text-on-surface focus:border-primary outline-none">
-                                    <option className="bg-surface-high">Salaried</option>
-                                    <option className="bg-surface-high">Gig Worker</option>
-                                    <option className="bg-surface-high">Self-Employed</option>
-                                    <option className="bg-surface-high">Farmer</option>
-                                    <option className="bg-surface-high">Daily Wage</option>
-                                </select>
-                            </div>
-                        </div>
+                        <motion.div 
+                            className="mb-8"
+                            initial="hidden"
+                            animate="visible"
+                            variants={{
+                                hidden: { opacity: 0 },
+                                visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+                            }}
+                        >
+                            {!upiMetrics ? (
+                                <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}>
+                                    <UPIConnect 
+                                        onAnalysisComplete={handleUpiAnalysisComplete} 
+                                        persona={isDemoMode ? 'gig_worker' : 'kirana_owner'} 
+                                        isDemoMode={isDemoMode}
+                                    />
+                                </motion.div>
+                            ) : (
+                                <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }}>
+                                    <UPIResultCard 
+                                        metrics={upiMetrics} 
+                                        onReset={() => setUpiMetrics(null)} 
+                                    />
+                                </motion.div>
+                            )}
+                        </motion.div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="space-y-2">
+                        <motion.div 
+                            className="grid grid-cols-1 md:grid-cols-2 gap-8"
+                            initial="hidden"
+                            animate="visible"
+                            variants={{
+                                hidden: { opacity: 0 },
+                                visible: {
+                                    opacity: 1,
+                                    transition: { staggerChildren: 0.1, delayChildren: 0.2 }
+                                }
+                            }}
+                        >
+                            <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="space-y-2">
                                 <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Request Amount (MATIC)</label>
                                 <input 
                                     type="text"
@@ -195,8 +236,8 @@ const Apply = () => {
                                         ≈ ₹{Math.round(formData.amount * MATIC_TO_INR).toLocaleString('en-IN')}
                                     </p>
                                 )}
-                            </div>
-                            <div className="space-y-2">
+                            </motion.div>
+                            <motion.div variants={{ hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }} className="space-y-2">
                                 <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Repayment Term</label>
                                 <select name="duration" value={formData.duration} onChange={handleChange} className="w-full bg-surface-low border border-white/10 rounded-xl p-4 text-on-surface focus:border-primary outline-none">
                                     <option value="7"  className="bg-surface-high">7 Days  (1 Week)</option>
@@ -209,10 +250,15 @@ const Apply = () => {
                                     <option value="270" className="bg-surface-high">270 Days (9 Months)</option>
                                     <option value="365" className="bg-surface-high">365 Days (1 Year)</option>
                                 </select>
-                            </div>
-                        </div>
+                            </motion.div>
+                        </motion.div>
 
-                        <div className="space-y-2">
+                        <motion.div 
+                            className="space-y-2"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.4 }}
+                        >
                             <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Purpose of Capital</label>
                             <select name="loanPurpose" value={formData.loanPurpose} onChange={handleChange} className="w-full bg-surface-low border border-white/10 rounded-xl p-4 text-on-surface focus:border-primary outline-none">
                                 <option className="bg-surface-high">Medical Emergency</option>
@@ -222,10 +268,15 @@ const Apply = () => {
                                 <option className="bg-surface-high">Home Repair</option>
                                 <option className="bg-surface-high">Other</option>
                             </select>
-                        </div>
+                        </motion.div>
                         
-                        {/* Collateral Section */}
-                        <div className="pt-4 border-t border-white/5 space-y-4">
+                        {/* Collateral & Extension Section */}
+                        <motion.div 
+                            className="pt-4 border-t border-white/5 space-y-4"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.5 }}
+                        >
                             <label className="flex items-center space-x-3 cursor-pointer">
                                 <input 
                                     type="checkbox" 
@@ -263,20 +314,43 @@ const Apply = () => {
                                     </div>
                                 </div>
                             )}
-                        </div>
+
+                            <label className="flex items-center space-x-3 cursor-pointer mt-4">
+                                <input 
+                                    type="checkbox" 
+                                    name="extensionRequested"
+                                    checked={formData.extensionRequested}
+                                    onChange={(e) => setFormData({...formData, extensionRequested: e.target.checked})}
+                                    className="w-5 h-5 rounded border-white/20 bg-surface-low text-primary focus:ring-primary focus:ring-offset-surface-base"
+                                />
+                                <span className="text-sm font-bold text-on-surface">Request Future Extension Option (Subject to Lender Approval & Extra Interest)</span>
+                            </label>
+                        </motion.div>
                         
-                        <div className="pt-6">
+                        <motion.div 
+                            className="pt-6"
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.6 }}
+                        >
                             <button type="submit" className="w-full bg-primary hover:bg-primary-dim text-white font-bold py-5 rounded-2xl transition-all flex items-center justify-center space-x-2">
                                 <span>Generate Precision AI Score</span>
                                 <ArrowRight size={20} />
                             </button>
-                        </div>
+                        </motion.div>
                     </form>
-                </div>
+                </motion.div>
             )}
 
             {step === 2 && (
-                <div className="tonal-card p-10 rounded-3xl ghost-border flex flex-col items-center justify-center min-h-[500px] animate-in fade-in zoom-in duration-500">
+                <motion.div 
+                    key="step2"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.4 }}
+                    className="tonal-card p-10 rounded-3xl ghost-border flex flex-col items-center justify-center min-h-[500px]"
+                >
                     {isAnalyzing ? (
                         <div className="flex flex-col items-center">
                             <div className="relative mb-8">
@@ -315,14 +389,21 @@ const Apply = () => {
                             </div>
                         </div>
                     ) : null}
-                </div>
+                </motion.div>
             )}
 
             {step === 3 && (() => {
                 const rate = getDynamicRate(formData.duration);
                 const totalRepayment = formData.amount * (1 + rate / 100);
                 return (
-                <div className="tonal-card p-10 rounded-3xl ghost-border animate-in fade-in slide-in-from-right-8 duration-500">
+                <motion.div 
+                    key="step3"
+                    initial={{ opacity: 0, x: 50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -50 }}
+                    transition={{ duration: 0.4 }}
+                    className="tonal-card p-10 rounded-3xl ghost-border"
+                >
                     <div className="flex items-center justify-between mb-8">
                         <h2 className="text-3xl font-display font-bold">Verification Ledger</h2>
                         {/* Currency toggle */}
@@ -396,9 +477,10 @@ const Apply = () => {
                             </button>
                         </div>
                     )}
-                </div>
+                </motion.div>
                 );
             })()}
+            </AnimatePresence>
         </div>
     );
 };

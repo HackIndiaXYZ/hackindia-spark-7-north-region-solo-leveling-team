@@ -2,7 +2,7 @@
 import { parseEther } from 'ethers';
 import { apiCreateLoan, apiGetMyLoans, apiGetPendingLoans, apiFundLoan, apiRepayLoan, apiDefaultLoan, apiGetStats } from './apiService';
 
-export const applyForLoan = async (contract, signer, amount, creditScore, purpose, duration, isDemoMode, walletAddress, collateralAsset, collateralValue) => {
+export const applyForLoan = async (contract, signer, amount, creditScore, purpose, duration, isDemoMode, walletAddress, collateralAsset, collateralValue, extensionRequested = false) => {
     // Always persist to MongoDB
     try {
         await apiCreateLoan(walletAddress, {
@@ -12,7 +12,8 @@ export const applyForLoan = async (contract, signer, amount, creditScore, purpos
             duration: Number(duration),
             interestRateBps: 800,
             collateralAsset,
-            collateralValue: Number(collateralValue)
+            collateralValue: Number(collateralValue),
+            extensionRequested
         });
     } catch (err) {
         console.error('API create loan error:', err);
@@ -25,7 +26,7 @@ export const applyForLoan = async (contract, signer, amount, creditScore, purpos
     }
     try {
         const amountWei = parseEther(amount.toString());
-        const tx = await contract.applyForLoan(amountWei, creditScore, purpose, duration, collateralAsset, collateralValue);
+        const tx = await contract.applyForLoan(amountWei, creditScore, purpose, duration, collateralAsset, collateralValue, extensionRequested);
         await tx.wait();
         return { success: true, txHash: tx.hash, loanId: 0 };
     } catch (e) {
@@ -109,6 +110,22 @@ export const markLoanAsDefaulted = async (contract, borrowerAddress, loanId, isD
     }
 };
 
+export const extendLoan = async (contract, loanId, isDemoMode) => {
+    if (isDemoMode) {
+        return new Promise(resolve => setTimeout(() =>
+            resolve({ success: true, txHash: "0xMockTxHash...Extend" })
+        , 1500));
+    }
+    try {
+        const tx = await contract.extendRepaymentDate(loanId);
+        await tx.wait();
+        return { success: true, txHash: tx.hash };
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: e };
+    }
+};
+
 // ─── Data Fetching (now via API) ─────────────────────────────────────────────
 
 export const getBorrowerLoans = async (contract, address, isDemoMode) => {
@@ -157,7 +174,10 @@ const normalizeLoan = (l) => ({
     repayBy: l.repayBy,
     repaid: l.repaid,
     collateralAsset: l.collateralAsset,
-    collateralValue: l.collateralValue
+    collateralValue: l.collateralValue,
+    extensionRequested: l.extensionRequested,
+    extensionsUsed: l.extensionsUsed || 0,
+    maxExtensions: l.maxExtensions || 1
 });
 
 // Utility: check if a funded loan is overdue past grace period (7 days)

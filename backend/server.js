@@ -6,6 +6,10 @@ const mongoose = require('mongoose');
 const creditScoreRoute = require('./routes/creditScore');
 const loansRoute = require('./routes/loans');
 const authRoute = require('./routes/auth');
+const scoreRoute = require('./src/routes/score');
+// const contractRoutes = require('./src/routes/contract');
+// const aiRoutes = require('./src/routes/ai');
+const upiRoutes = require('./src/routes/upi');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -26,9 +30,13 @@ app.use(express.json());
 app.use(morgan('dev'));
 
 // ─── Routes ─────────────────────────────────────────────────────────────────────
-app.use('/api/credit-score', creditScoreRoute);
+app.use('/api/score', scoreRoute);           // NEW: production scoring engine
+app.use('/api/credit-score', creditScoreRoute); // LEGACY: keep for backward compat
 app.use('/api/loans', loansRoute);
 app.use('/api/auth', authRoute);
+// app.use('/api/contract', contractRoutes);
+// app.use('/api/ai', aiRoutes);
+app.use('/api/upi', upiRoutes);
 
 app.get('/', (req, res) => {
     res.send('MicroLend Backend API is running...');
