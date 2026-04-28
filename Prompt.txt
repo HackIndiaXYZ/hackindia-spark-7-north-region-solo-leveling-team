@@ -1,0 +1,479 @@
+You are building a complete, fully functional DeFi micro-lending platform called
+"MicroLend" for a hackathon (HackIndia Spark 6). Build the ENTIRE project from
+scratch — frontend, backend, smart contracts, AI integration, and Web3 layer.
+
+═══════════════════════════════════════════════════════════════
+PROJECT: MicroLend — AI-Powered DeFi Micro-Lending for Unbanked India
+═══════════════════════════════════════════════════════════════
+
+CONCEPT:
+Unbanked Indians (gig workers, farmers, kirana owners) can't get bank loans
+because they have no CIBIL score. MicroLend uses AI to score them using
+alternative data and issues micro-loans directly via blockchain smart contracts.
+No bank needed. No middleman. No discrimination.
+
+═══════════════════════════════════════════════════════════════
+TECH STACK
+═══════════════════════════════════════════════════════════════
+
+- Frontend:     React.js + TailwindCSS + React Router v6
+- Web3:         ethers.js v6 + MetaMask
+- Blockchain:   Solidity ^0.8.0 on Polygon Mumbai testnet
+- Dev Tools:    Hardhat (compile + deploy scripts)
+- AI:           OpenAI GPT-4o API (credit scoring)
+- Backend:      Node.js + Express (proxy for OpenAI API key safety)
+- Charts:       Recharts
+- Notifications: react-hot-toast
+- Icons:        lucide-react
+
+═══════════════════════════════════════════════════════════════
+FOLDER STRUCTURE — CREATE EXACTLY THIS
+═══════════════════════════════════════════════════════════════
+
+microlend/
+├── contracts/
+│   └── MicroLend.sol
+├── scripts/
+│   └── deploy.js
+├── hardhat.config.js
+├── .env                          ← template with placeholders
+├── backend/
+│   ├── server.js
+│   └── routes/
+│       └── creditScore.js
+├── frontend/
+│   ├── public/
+│   │   └── index.html
+│   ├── src/
+│   │   ├── index.js
+│   │   ├── App.js
+│   │   ├── context/
+│   │   │   └── Web3Context.js
+│   │   ├── utils/
+│   │   │   ├── web3Service.js
+│   │   │   └── contractABI.js
+│   │   ├── components/
+│   │   │   ├── Navbar.js
+│   │   │   ├── ScoreGauge.js
+│   │   │   ├── LoanCard.js
+│   │   │   └── ToastProvider.js
+│   │   └── pages/
+│   │       ├── Home.js
+│   │       ├── Apply.js
+│   │       ├── LenderDashboard.js
+│   │       └── BorrowerDashboard.js
+│   ├── package.json
+│   └── tailwind.config.js
+└── README.md
+
+═══════════════════════════════════════════════════════════════
+STEP 1 — SMART CONTRACT: contracts/MicroLend.sol
+═══════════════════════════════════════════════════════════════
+
+Create MicroLend.sol with:
+
+STRUCTS:
+- LoanRequest: { uint id, address borrower, uint amount, uint creditScore,
+  uint interestRate, uint duration, string purpose, LoanStatus status,
+  uint createdAt, uint repayBy, bool repaid }
+- LoanStatus enum: { PENDING, FUNDED, REPAID, DEFAULTED }
+
+STATE VARIABLES:
+- mapping(address => LoanRequest[]) public borrowerLoans
+- mapping(uint => address) public loanIdToLender
+- uint public totalLoansIssued
+- uint public totalValueLocked
+- uint public loanCounter
+- address public owner
+- uint public PROTOCOL_FEE = 5 (0.5% in basis points)
+
+FUNCTIONS:
+1. applyForLoan(uint amount, uint creditScore, string purpose, uint duration)
+   - Require creditScore >= 600
+   - Require amount between 0.001 ether and 1 ether
+   - Require duration 30, 60, or 90 days
+   - Set interestRate = 8 (8%)
+   - Status = PENDING
+   - Emit LoanApplied(loanId, borrower, amount, creditScore)
+
+2. fundLoan(address borrower, uint loanId) payable
+   - Require msg.value == loan.amount
+   - Require loan.status == PENDING
+   - Transfer ETH to borrower
+   - Set loanIdToLender[loanId] = msg.sender
+   - Set status = FUNDED
+   - Set repayBy = block.timestamp + duration days
+   - totalValueLocked += amount
+   - Emit LoanFunded(loanId, lender, borrower, amount)
+
+3. repayLoan(uint loanId) payable
+   - Calculate repayment = principal + 8% interest
+   - Require msg.value >= repayment
+   - Transfer principal to lender
+   - Transfer 0.5% protocol fee to owner
+   - Set status = REPAID, repaid = true
+   - totalValueLocked -= amount
+   - Emit LoanRepaid(loanId, borrower, amount)
+
+4. getLoansByBorrower(address borrower) returns LoanRequest[]
+5. getAllPendingLoans() returns LoanRequest[] (loop all loanCounter IDs)
+6. getProtocolStats() returns (totalLoansIssued, totalValueLocked)
+
+MODIFIERS: onlyOwner, validLoanId
+
+EVENTS: LoanApplied, LoanFunded, LoanRepaid, LoanDefaulted
+
+Use Solidity ^0.8.0. Add full NatSpec comments on all functions.
+Add ReentrancyGuard pattern manually (no imports needed).
+Follow checks-effects-interactions pattern in all payable functions.
+
+═══════════════════════════════════════════════════════════════
+STEP 2 — HARDHAT CONFIG & DEPLOY SCRIPT
+═══════════════════════════════════════════════════════════════
+
+hardhat.config.js:
+- networks: { mumbai: { url: process.env.MUMBAI_RPC_URL, accounts: [process.env.PRIVATE_KEY] } }
+- solidity: "0.8.19"
+
+scripts/deploy.js:
+- Deploy MicroLend contract
+- Console.log the deployed address
+- Save ABI + address to frontend/src/utils/contractABI.js automatically
+
+.env template (with placeholders, not real keys):
+MUMBAI_RPC_URL=https://rpc-mumbai.maticvigil.com
+PRIVATE_KEY=your_wallet_private_key_here
+OPENAI_API_KEY=your_openai_api_key_here
+CONTRACT_ADDRESS=deployed_after_running_deploy_script
+
+═══════════════════════════════════════════════════════════════
+STEP 3 — BACKEND: backend/server.js + routes/creditScore.js
+═══════════════════════════════════════════════════════════════
+
+Express server on port 5000 with CORS enabled.
+
+POST /api/credit-score endpoint that:
+1. Accepts body: { income, employmentType, existingDebt, loanPurpose,
+   repaymentHistory, utilityPayments, yearsAtAddress }
+
+2. Calls OpenAI GPT-4o API with this exact system prompt:
+   "You are a financial credit scoring AI specializing in alternative credit
+   assessment for unbanked individuals in India. You evaluate creditworthiness
+   using non-traditional data points instead of formal credit history.
+   Analyze the provided data and return ONLY a valid JSON object with no
+   additional text, markdown, or explanation. The JSON must have exactly
+   these fields:
+   {
+     'score': <integer between 300 and 900>,
+     'risk': <'low' | 'medium' | 'high'>,
+     'approved': <true if score >= 600, else false>,
+     'reason': <string, 2-3 sentences explaining the score in simple English>,
+     'maxLoanAmount': <recommended max loan in ETH, between 0.001 and 1.0>,
+     'suggestedRate': <interest rate percentage, always 8>
+   }"
+
+3. User message format to send:
+   "Income: ₹{income}/month, Employment: {employmentType},
+   Existing Debt: {existingDebt}, Loan Purpose: {loanPurpose},
+   Past Repayment: {repaymentHistory}, Utility Bills: {utilityPayments},
+   Residential Stability: {yearsAtAddress} years at current address.
+   Generate a credit score."
+
+4. Parse the JSON response and return it to the client.
+5. If OpenAI fails, return a mock score object for demo mode.
+
+Add error handling with try/catch. Log all requests.
+
+═══════════════════════════════════════════════════════════════
+STEP 4 — WEB3 CONTEXT: frontend/src/context/Web3Context.js
+═══════════════════════════════════════════════════════════════
+
+Create a React Context that:
+
+STATE:
+- walletAddress (string)
+- contract (ethers Contract instance)
+- provider (ethers BrowserProvider)
+- signer (ethers JsonRpcSigner)
+- balance (string, formatted ETH)
+- isConnected (boolean)
+- isWrongNetwork (boolean)
+- isDemoMode (boolean) ← global demo toggle
+
+FUNCTIONS:
+1. connectWallet():
+   - Request MetaMask accounts
+   - Check chainId === 80001 (Mumbai) — if wrong, call switchToMumbai()
+   - Create provider, signer, contract instance
+   - Set all state
+
+2. switchToMumbai():
+   - wallet_switchEthereumChain for Mumbai
+   - If not added: wallet_addEthereumChain with Mumbai params
+     { chainId: '0x13881', chainName: 'Polygon Mumbai',
+       rpcUrls: ['https://rpc-mumbai.maticvigil.com'],
+       nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
+       blockExplorerUrls: ['https://mumbai.polygonscan.com'] }
+
+3. disconnectWallet(): Reset all state
+
+4. toggleDemoMode(): Flip isDemoMode boolean
+
+Export useWeb3() custom hook.
+Wrap entire app in Web3Provider in App.js.
+
+═══════════════════════════════════════════════════════════════
+STEP 5 — WEB3 SERVICE: frontend/src/utils/web3Service.js
+═══════════════════════════════════════════════════════════════
+
+Functions that call the smart contract:
+
+1. applyForLoan(contract, signer, amount, creditScore, purpose, duration)
+   - Call contract.applyForLoan() with ethers transaction
+   - Wait for tx.wait()
+   - Return { success, txHash, loanId }
+
+2. fundLoan(contract, signer, borrowerAddress, loanId, amount)
+   - Call contract.fundLoan() with value = amount in ETH
+   - Return { success, txHash }
+
+3. repayLoan(contract, signer, loanId, principalAmount)
+   - Calculate repayment = principal * 1.08
+   - Call contract.repayLoan() with value
+   - Return { success, txHash }
+
+4. getBorrowerLoans(contract, address)
+   - Call contract.getLoansByBorrower(address)
+   - Format and return loan array
+
+5. getAllPendingLoans(contract)
+   - Call contract.getAllPendingLoans()
+   - Return formatted array
+
+6. getProtocolStats(contract)
+   - Call contract.getProtocolStats()
+   - Return { totalLoans, tvl }
+
+DEMO MODE VERSIONS of all functions:
+- Return realistic mock data with 1.5 second artificial delay
+- Use setTimeout to simulate blockchain latency
+
+═══════════════════════════════════════════════════════════════
+STEP 6 — COMPONENTS
+═══════════════════════════════════════════════════════════════
+
+--- Navbar.js ---
+- Dark navbar: bg-gray-950 border-b border-purple-900/30
+- Left: "⚡ MicroLend" logo in purple gradient text
+- Center: Nav links → Home, Apply, Lend, Dashboard (React Router Links)
+- Right: 
+  * Demo Mode toggle switch (calls toggleDemoMode from context)
+  * If demo: yellow badge "DEMO MODE"
+  * If connected: green dot + truncated address (0x1234...abcd) + balance in MATIC
+  * If not connected: "Connect Wallet" purple button
+- Responsive: hamburger menu on mobile
+
+--- ScoreGauge.js ---
+Props: { score, risk, approved, reason, maxLoanAmount }
+- Animated circular SVG gauge (0–900 range)
+- Color: green (700–900) / yellow (500–699) / red (300–499)
+- Center text: large score number + risk label
+- Below gauge: approved/rejected badge
+- Reason text in a card below
+- Entry animation: gauge fills from 0 to score over 1.5 seconds
+- Export as reusable component
+
+--- LoanCard.js ---
+Props: { loan, onFund, isLender }
+- Card showing: borrower address (truncated), amount in MATIC + INR equivalent,
+  AI score with color badge, risk level, loan purpose, duration, status badge
+- Status colors: PENDING=yellow, FUNDED=blue, REPAID=green, DEFAULTED=red
+- If isLender and status=PENDING: show "Fund This Loan" button
+- PolygonScan link for txHash if available
+
+--- ToastProvider.js ---
+- Wrap app with react-hot-toast Toaster
+- Custom styles: dark background, purple accent
+- Helper functions: 
+  * toastPending("Transaction submitted...") → loading toast
+  * toastSuccess("Loan funded! ✓") → success
+  * toastError("Transaction failed") → error
+  * toastTx(txHash) → success with PolygonScan link
+
+═══════════════════════════════════════════════════════════════
+STEP 7 — PAGES
+═══════════════════════════════════════════════════════════════
+
+--- Home.js (route: /) ---
+
+Hero Section:
+- Gradient headline: "Credit for Every Indian"
+- Subtext: "AI-powered loans for the 190 million unbanked. No CIBIL. No bank. No bias."
+- Two CTA buttons: "Apply for a Loan" (→/apply) and "Become a Lender" (→/lend)
+- Background: dark with subtle purple grid pattern
+
+Stats Bar (fetch from contract or mock in demo):
+- 4 animated counter cards: Total Loans Issued / Total Value Locked / 
+  Avg Credit Score / Repayment Rate %
+- Numbers animate counting up on page load
+
+How It Works Section:
+- 3-step flow with icons:
+  Step 1: "Fill your profile" → AI scores you
+  Step 2: "Get AI score" → smart contract records it  
+  Step 3: "Receive loan" → ETH to your wallet instantly
+
+Why MicroLend Section:
+- Comparison table vs moneylenders:
+  | Feature | Moneylenders | MicroLend |
+  | Interest | 40-60% | 8% |
+  | Collateral | Yes | No |
+  | Approval | Arbitrary | AI-based |
+  | Transparency | Zero | 100% on-chain |
+
+--- Apply.js (route: /apply) ---
+
+Multi-step form with progress bar (Step 1 of 3, Step 2 of 3, Step 3 of 3):
+
+STEP 1 — Profile Form:
+Fields:
+- Full Name (text input)
+- Monthly Income (number input, ₹)
+- Employment Type (select: Salaried / Gig Worker / Self-Employed / Farmer / Daily Wage)
+- Existing Debt (select: None / Low <10k / Medium 10-50k / High >50k)
+- Loan Purpose (select: Medical Emergency / Business Capital / Agriculture / Education / Home Repair / Other)
+- Loan Amount (range slider: 0.01 to 1.0 MATIC, show INR equivalent assuming 1 MATIC = ₹80)
+- Loan Duration (radio: 30 days / 60 days / 90 days)
+- Past Repayment History (select: No History / Good - Always paid on time / Poor - Missed payments)
+- Utility Bill Payments (select: Always on time / Sometimes late / Frequently late)
+- Years at Current Address (number input, 0–50)
+"Get My Credit Score" button at bottom.
+
+STEP 2 — AI Score Result:
+- Show loading spinner with text "AI is analyzing your profile..."
+- Call POST /api/credit-score with form data
+- Display ScoreGauge component with results
+- If approved (score >= 600): show "Proceed to Apply" green button
+- If rejected (score < 600): show rejection message with tips to improve score
+- "Recalculate" button to go back
+
+STEP 3 — Submit Loan On-Chain:
+- Show loan summary: amount, duration, repayment amount (principal + 8%)
+- "Connect Wallet" if not connected
+- If connected: show wallet address and MATIC balance
+- "Submit Loan Application" button → calls applyForLoan() smart contract
+- Show pending toast → confirm toast with tx hash
+- Redirect to /dashboard on success
+
+--- LenderDashboard.js (route: /lend) ---
+
+Top Section:
+- Lender stats: Your Funded Loans / Total Earned / Active Positions
+- "Your Portfolio" pie chart (Recharts PieChart) showing loan distribution by risk
+
+Pending Loans Feed:
+- Grid of LoanCard components for all PENDING loans
+- Filter bar: All / Low Risk / Medium Risk / High Risk
+- Sort: Newest First / Highest Score / Largest Amount
+- Each card has "Fund This Loan" button
+- On click: confirm dialog → fundLoan() transaction → toast notification
+- Empty state: "No pending loans. Check back soon."
+
+--- BorrowerDashboard.js (route: /dashboard) ---
+
+Header:
+- "Welcome back" + truncated wallet address
+- Credit score history mini-chart (if multiple applications)
+
+Active Loans Section:
+- Cards for all FUNDED loans
+- Show: amount, repayment due date, countdown timer (days:hours:mins)
+- Repayment amount clearly displayed
+- "Repay Now" button → calls repayLoan() → toast → updates status
+- Overdue loans: red highlight, "OVERDUE" badge
+
+Completed Loans Section:
+- Historical table: loan ID / amount / score / funded date / repaid date / txHash link
+
+═══════════════════════════════════════════════════════════════
+STEP 8 — DEMO MODE (CRITICAL FOR HACKATHON)
+═══════════════════════════════════════════════════════════════
+
+When isDemoMode = true (toggled from Navbar):
+1. Skip MetaMask — use hardcoded demo address: "0xDemo...1234"
+2. All web3Service functions return mock data with 1.5s delay
+3. AI credit score returns: { score: 742, risk: 'low', approved: true,
+   reason: 'Strong gig income with consistent utility payments. 
+   Residential stability and clear loan purpose indicate low risk.
+   Recommended for approval.', maxLoanAmount: 0.5, suggestedRate: 8 }
+4. Pre-fill Apply form with: Income=18000, Employment=Gig Worker,
+   Debt=None, Purpose=Medical Emergency, Amount=0.1 MATIC, Duration=30 days,
+   Repayment=Good, Utility=Always, Years=3
+5. Home page stats show: 1,247 loans / 892 MATIC TVL / 724 avg score / 91.3% repaid
+6. Lender dashboard shows 5 realistic fake pending loans
+7. Borrower dashboard shows 1 active loan + 2 completed loans
+8. Yellow banner at top: "⚠️ Demo Mode Active — No real transactions"
+
+═══════════════════════════════════════════════════════════════
+STEP 9 — STYLING SYSTEM
+═══════════════════════════════════════════════════════════════
+
+Global theme (add to tailwind.config.js and index.css):
+- Background: #030712 (gray-950)
+- Cards: #111827 (gray-900) with border border-gray-800
+- Primary: purple-600 (#9333EA)
+- Accent: purple-400 for highlights
+- Text primary: white
+- Text secondary: gray-400
+- Success: green-400
+- Warning: yellow-400
+- Error: red-400
+- Gradient text: bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent
+
+Card style (reuse everywhere):
+bg-gray-900 border border-gray-800 rounded-2xl p-6 hover:border-purple-600/50 
+transition-all duration-200 hover:shadow-lg hover:shadow-purple-900/20
+
+Button styles:
+- Primary: bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-semibold transition-all
+- Secondary: border border-purple-600 text-purple-400 hover:bg-purple-600/10 px-6 py-3 rounded-xl
+- Danger: bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl
+
+All pages must be fully mobile responsive using Tailwind responsive prefixes.
+
+═══════════════════════════════════════════════════════════════
+STEP 10 — FINAL SETUP FILES
+═══════════════════════════════════════════════════════════════
+
+frontend/package.json dependencies:
+react, react-dom, react-router-dom, ethers@^6, tailwindcss, 
+recharts, react-hot-toast, lucide-react, axios
+
+backend/package.json dependencies:
+express, cors, openai, dotenv, morgan
+
+README.md with:
+- Project description and problem statement
+- Tech stack
+- How to run (npm install, hardhat compile, deploy, npm start)
+- Smart contract address placeholder
+- Team members section
+- Demo mode instructions for judges
+
+═══════════════════════════════════════════════════════════════
+EXECUTION INSTRUCTIONS FOR ANTIGRAVITY
+═══════════════════════════════════════════════════════════════
+
+1. Create the full folder structure first
+2. Install all dependencies (npm install in both /frontend and /backend)
+3. Write MicroLend.sol and compile with Hardhat to verify no errors
+4. Build backend server and test /api/credit-score endpoint
+5. Build React frontend starting with Web3Context, then utils, then components, then pages
+6. Run the frontend dev server and verify all 4 pages render
+7. Test full demo mode flow: Apply → Score → Fund → Repay without MetaMask
+8. Confirm mobile responsiveness on all pages
+
+After completing all steps, show me:
+- The running dev server URL
+- Any compilation warnings or errors
+- A summary of all files created
