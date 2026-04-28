@@ -169,7 +169,7 @@ const Home = () => {
             </section>
 
             {/* Scrollytelling Section 1: The Secure Vault */}
-            <section ref={vaultRef} className="relative h-[250vh] w-full z-20">
+            <section ref={vaultRef} className="relative h-[200vh] w-full z-20">
                 <div className="sticky top-0 h-screen flex flex-col items-center justify-center overflow-hidden px-6">
                     <motion.div style={{ opacity: vaultHeadingOpacity }} className="text-center mb-16">
                         <h2 className="text-4xl md:text-6xl font-display font-bold mb-4">The Global Liquidity Vault</h2>
@@ -227,7 +227,7 @@ const Home = () => {
                 </div>
 
                 {/* Moving Feature Cards */}
-                <div className="relative z-10 max-w-5xl mx-auto px-6 space-y-16 -mt-[60vh] pb-16">
+                <div className="relative z-10 max-w-5xl mx-auto px-6 space-y-16 -mt-[100vh] pb-16">
                     <motion.div 
                         initial={{ opacity: 0, y: 150, scale: 0.9 }}
                         whileInView={{ opacity: 1, y: 0, scale: 1 }}
