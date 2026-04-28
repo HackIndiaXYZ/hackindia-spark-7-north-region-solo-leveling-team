@@ -91,7 +91,6 @@ export default function AboutUs() {
             </div>
 
             <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px 80px' }}>
-
                 {/* Live Stats */}
                 <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} style={{ margin: '-30px 0 60px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
