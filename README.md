@@ -53,4 +53,7 @@ MicroLend includes a robust **Demo Mode** toggled in the Navbar.
 - **Pre-filled Ledger:** Automatically populates the lending marketplace with realistic data.
 
 ---
-**HackIndia Spark 6 - Team MicroLend**
+**HackIndia Spark 6/7 - Team MicroLend (Solo leveling team)**
+
+# hackindia-spark-7-north-region-solo-leveling-team
+Hackathon team repository for Solo leveling team - [hackindia-team:hackindia-spark-7-north-region:solo-leveling-team]
